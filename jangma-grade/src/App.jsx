@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
-import { FLOOD_ZONES, HEX, PROPS, RAIN_DESCRIPTIONS, gradeOf } from './data.js';
+import { HEX, PROPS, RAIN_DESCRIPTIONS, gradeOf } from './data.js';
 
 const DEAL_OPTIONS = ['전체', '전세', '월세'];
 const ROOM_OPTIONS = ['원룸', '투룸+', '오피스텔'];
@@ -448,9 +448,7 @@ function MapPane({
   const mapElementRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef({});
-  const zoneLayersRef = useRef([]);
   const selectedFloodRef = useRef(null);
-  const selectedFloodHaloRef = useRef(null);
 
   useEffect(() => {
     if (!mapElementRef.current || mapRef.current) return;
@@ -467,16 +465,6 @@ function MapPane({
         maxZoom: 20,
       },
     ).addTo(map);
-
-    zoneLayersRef.current = FLOOD_ZONES.map((zone) =>
-      L.polygon(zone.coords, {
-        color: '#2f83c9',
-        weight: 1,
-        opacity: 0,
-        fillColor: '#2f83c9',
-        fillOpacity: 0,
-      }).addTo(map),
-    );
 
     PROPS.forEach((property) => {
       const marker = L.marker([property.lat, property.lng], {
@@ -508,35 +496,13 @@ function MapPane({
   }, [rain, selectedId, visiblePropertyIds]);
 
   useEffect(() => {
-    zoneLayersRef.current.forEach((layer, index) => {
-      const active = Boolean(
-        floodOn && selectedProperty && rain >= FLOOD_ZONES[index].thr,
-      );
-      layer.setStyle({
-        opacity: active ? 0.78 : 0,
-        fillOpacity: active ? 0.42 : 0,
-        color: '#2f83c9',
-        fillColor: '#2f83c9',
-      });
-    });
-  }, [floodOn, rain, selectedProperty]);
-
-  useEffect(() => {
     if (!mapRef.current) return;
 
     if (!selectedFloodRef.current) {
-      selectedFloodHaloRef.current = L.circle([0, 0], {
-        radius: 0,
-        color: '#8fc6ea',
-        weight: 2,
-        opacity: 0,
-        fillColor: '#8fc6ea',
-        fillOpacity: 0,
-      }).addTo(mapRef.current);
       selectedFloodRef.current = L.circle([0, 0], {
         radius: 0,
         color: '#2f83c9',
-        weight: 1.5,
+        weight: 2,
         opacity: 0,
         fillColor: '#2f83c9',
         fillOpacity: 0,
@@ -550,20 +516,11 @@ function MapPane({
     const radius = active ? floodRadius(selectedProperty, rain) : 0;
     const flooded = selectedProperty && rain >= selectedProperty.thr;
 
-    selectedFloodHaloRef.current.setLatLng(center);
-    selectedFloodHaloRef.current.setRadius(radius * 1.35);
-    selectedFloodHaloRef.current.setStyle({
-      opacity: active ? 0.9 : 0,
-      fillOpacity: active ? 0.24 : 0,
-      color: flooded ? '#ff8a8a' : '#8fc6ea',
-      fillColor: flooded ? '#e04b4b' : '#8fc6ea',
-    });
-
     selectedFloodRef.current.setLatLng(center);
     selectedFloodRef.current.setRadius(radius);
     selectedFloodRef.current.setStyle({
       opacity: active ? 0.8 : 0,
-      fillOpacity: active ? (flooded ? 0.36 : 0.26) : 0,
+      fillOpacity: active ? (flooded ? 0.3 : 0.22) : 0,
       color: flooded ? '#e04b4b' : '#2f83c9',
       fillColor: flooded ? '#e04b4b' : '#2f83c9',
     });
