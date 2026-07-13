@@ -172,6 +172,9 @@ function BrandBar() {
     <header className="brandbar">
       <div className="brandbar__l">
         <span className="logo">
+          <svg className="logo__mark" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 2.5C12 2.5 4.5 11 4.5 16A7.5 7.5 0 0 0 19.5 16C19.5 11 12 2.5 12 2.5Z" />
+          </svg>
           뽀송<b>˚</b>
         </span>
         <span className="brandbar__tag">물길까지 보는 부동산</span>
@@ -313,7 +316,6 @@ function Filters({
         )}
       </div>
       <div className="fdrop hot">
-        <span className="newdot">NEW</span>
         <select
           aria-label="침수등급"
           value={minThreshold}
@@ -349,38 +351,19 @@ function PropertyCard({ property, selected, onSelect }) {
       type="button"
       onClick={() => onSelect(property.id)}
     >
-      <div className="card__thumb">
-        <span className="card__gtag" style={{ background: HEX[grade.g] }}>
-          {grade.g}
-        </span>
-        <svg
-          className="home"
-          width="26"
-          height="26"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#8a97a0"
-          strokeWidth="1.5"
-          aria-hidden="true"
-        >
-          <path d="M3 11l9-7 9 7" />
-          <path d="M5 10v10h14V10" />
-        </svg>
+      <div className="card__grade" style={{ background: HEX[grade.g] }}>
+        <span className="card__grade-g">{grade.g}</span>
+        <span className="card__grade-mm">{property.thr}mm</span>
       </div>
       <div className="card__b">
-        <span className="owner">{property.owner}</span>
         <div className="card__name">{property.name}</div>
         <div className="card__price">
           <span>{dealKind}</span> {dealValue}
         </div>
         <div className="card__spec">{property.spec}</div>
-        <span className="gradechip" style={{ background: HEX[grade.g] }}>
-          침수 {grade.g}등급{' '}
-          <span className="mm">· 임계점 {property.thr}mm</span>
-        </span>
-        <div className="card__meta">
-          {property.agency} ·{' '}
-          <span className="chk2">확인매물 {property.checked}</span>
+        <div className="card__tags">
+          {property.banjiha && <span className="tag tag--risk">반지하</span>}
+          <span className="tag tag--sc">시간당 {property.thr}mm부터 침수</span>
         </div>
       </div>
     </button>
@@ -436,13 +419,6 @@ function PropertyList({
   );
 }
 
-function floodRadius(property, rain) {
-  if (!property) return 0;
-  const base = property.banjiha ? 95 : 70;
-  const pressure = Math.max(0.45, rain / Math.max(property.thr, 1));
-  return Math.min(460, Math.round(base + pressure * 185));
-}
-
 function MapPane({
   rain,
   region,
@@ -450,13 +426,11 @@ function MapPane({
   selectedId,
   selectedProperty,
   visiblePropertyIds,
-  floodOn,
   onSelect,
 }) {
   const mapElementRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef({});
-  const selectedFloodRef = useRef(null);
 
   // 지역 데이터가 도착하면 해당 중심으로 지도를 초기화합니다.
   useEffect(() => {
@@ -482,7 +456,6 @@ function MapPane({
       map.remove();
       mapRef.current = null;
       markersRef.current = {};
-      selectedFloodRef.current = null;
     };
   }, [region]);
 
@@ -516,37 +489,6 @@ function MapPane({
   }, [rain, selectedId, visiblePropertyIds, listings]);
 
   useEffect(() => {
-    if (!mapRef.current) return;
-
-    if (!selectedFloodRef.current) {
-      selectedFloodRef.current = L.circle([0, 0], {
-        radius: 0,
-        color: '#2f83c9',
-        weight: 2,
-        opacity: 0,
-        fillColor: '#2f83c9',
-        fillOpacity: 0,
-      }).addTo(mapRef.current);
-    }
-
-    const active = Boolean(floodOn && selectedProperty);
-    const center = selectedProperty
-      ? [selectedProperty.lat, selectedProperty.lng]
-      : [0, 0];
-    const radius = active ? floodRadius(selectedProperty, rain) : 0;
-    const flooded = selectedProperty && rain >= selectedProperty.thr;
-
-    selectedFloodRef.current.setLatLng(center);
-    selectedFloodRef.current.setRadius(radius);
-    selectedFloodRef.current.setStyle({
-      opacity: active ? 0.8 : 0,
-      fillOpacity: active ? (flooded ? 0.3 : 0.22) : 0,
-      color: flooded ? '#e04b4b' : '#2f83c9',
-      fillColor: flooded ? '#e04b4b' : '#2f83c9',
-    });
-  }, [floodOn, rain, selectedProperty]);
-
-  useEffect(() => {
     if (!selectedProperty || !mapRef.current) return;
     mapRef.current.panTo([selectedProperty.lat, selectedProperty.lng], {
       animate: true,
@@ -568,28 +510,17 @@ function MapPane({
   );
 }
 
-function RainPanel({ rain, property, onRain }) {
+function RainDock({ rain, onRain }) {
   const description = RAIN_DESCRIPTIONS.find((item) => rain >= item.min).t;
-  const flooded = rain >= property.thr;
 
   return (
     <div className="rainpanel">
       <div className="rp__row">
-        <div>
-          <div className="rp__read">
-            <span className="rp__num">{rain}</span>
-            <span className="rp__unit">mm / 시간</span>
-          </div>
-          <div className="rp__desc">{description}</div>
+        <div className="rp__read">
+          <span className="rp__num">{rain}</span>
+          <span className="rp__unit">mm / 시간</span>
         </div>
-        <div className="rp__status">
-          선택 매물 임계점
-          <br />
-          <span className={`rp__cnt ${flooded ? 'hot' : ''}`}>
-            {property.thr}
-          </span>{' '}
-          <span className="rp__total">mm/h</span>
-        </div>
+        <div className="rp__desc">{description}</div>
       </div>
       <div className="rp__track">
         <div className="rp__2020">2020.7.30 정림동 78mm</div>
@@ -614,7 +545,7 @@ function RainPanel({ rain, property, onRain }) {
   );
 }
 
-function DetailDrawer({ property, rain, listings, onClose }) {
+function DetailPanel({ property, rain, listings, onBack }) {
   const [report, setReport] = useState(
     '아래 버튼을 눌러 이 매물의 솔직한 브리핑을 받아보세요.',
   );
@@ -627,9 +558,7 @@ function DetailDrawer({ property, rain, listings, onClose }) {
     setCoachOpen(false);
   }, [property?.id]);
 
-  if (!property) {
-    return <aside className="drawer" aria-hidden="true" />;
-  }
+  if (!property) return null;
 
   const grade = gradeOf(property.thr);
   const crossSection = buildCrossSection(property, rain, listings);
@@ -659,9 +588,12 @@ function DetailDrawer({ property, rain, listings, onClose }) {
   };
 
   return (
-    <aside className="drawer open">
-      <div className="dw__top">
-        <div>
+    <aside className="detail">
+      <button className="dw__back" type="button" onClick={onBack}>
+        ‹ 목록으로
+      </button>
+      <div className="dw__body">
+        <div className="dw__id">
           <div className="p-name">{property.name}</div>
           <div className="p-addr">
             {property.addr} · {property.deal}
@@ -670,11 +602,6 @@ function DetailDrawer({ property, rain, listings, onClose }) {
             {property.banjiha ? '반지하' : '지상'}
           </span>
         </div>
-        <button className="dw__x" title="닫기" type="button" onClick={onClose}>
-          ✕
-        </button>
-      </div>
-      <div className="dw__body">
         <div className="hero">
           <div className="hero__thr">
             <div className="lbl">침수 임계점</div>
@@ -795,7 +722,6 @@ export default function App() {
   const [sortMode, setSortMode] = useState('rank');
   const [minThreshold, setMinThreshold] = useState(0);
   const [hideRisk, setHideRisk] = useState(false);
-  const [floodOn] = useState(true);
   const [roomType, setRoomType] = useState('원룸');
   const [dealType, setDealType] = useState('전체');
   const [priceLimits, setPriceLimits] = useState({ 월세: 100, 전세: 35000 });
@@ -864,14 +790,23 @@ export default function App() {
         onRoomType={setRoomType}
       />
       <main className="work">
-        <PropertyList
-          properties={visibleProperties}
-          loading={loading}
-          selectedId={selectedId}
-          sortMode={sortMode}
-          onSelect={setSelectedId}
-          onSort={setSortMode}
-        />
+        {selectedProperty ? (
+          <DetailPanel
+            property={selectedProperty}
+            rain={rain}
+            listings={listings}
+            onBack={() => setSelectedId(null)}
+          />
+        ) : (
+          <PropertyList
+            properties={visibleProperties}
+            loading={loading}
+            selectedId={selectedId}
+            sortMode={sortMode}
+            onSelect={setSelectedId}
+            onSort={setSortMode}
+          />
+        )}
         <section className="mapwrap">
           <MapPane
             rain={rain}
@@ -880,22 +815,9 @@ export default function App() {
             selectedId={selectedId}
             selectedProperty={selectedProperty}
             visiblePropertyIds={visiblePropertyIds}
-            floodOn={floodOn}
             onSelect={setSelectedId}
           />
-          {selectedProperty && (
-            <RainPanel
-              rain={rain}
-              property={selectedProperty}
-              onRain={setRain}
-            />
-          )}
-          <DetailDrawer
-            property={selectedProperty}
-            rain={rain}
-            listings={listings}
-            onClose={() => setSelectedId(null)}
-          />
+          <RainDock rain={rain} onRain={setRain} />
         </section>
       </main>
     </>
