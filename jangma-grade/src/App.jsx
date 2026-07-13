@@ -172,13 +172,9 @@ function BrandBar() {
     <header className="brandbar">
       <div className="brandbar__l">
         <span className="logo">
-          장마등급<b>°</b>
+          RainMap<b>°</b>
         </span>
         <span className="brandbar__tag">침수 안전등급이 보이는 부동산</span>
-      </div>
-      <div className="brandbar__thesis">
-        채광·주차·곰팡이 후기는 있는데, <b>이 집이 몇 mm부터 잠기는지</b>는
-        없었다.
       </div>
     </header>
   );
@@ -538,7 +534,7 @@ function MapPane({
       <div ref={mapElementRef} id="map" />
       <div className="bread">
         <span className="pin">◉</span> 대전광역시 <i>›</i> 서구 <i>›</i> 정림동
-         
+        w
       </div>
     </>
   );
