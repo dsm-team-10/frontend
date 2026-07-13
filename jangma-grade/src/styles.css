@@ -384,6 +384,14 @@ input {
   flex: 1;
 }
 
+.list__loading {
+  padding: 40px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--txt-3);
+  font-family: var(--mono);
+}
+
 .card {
   width: 100%;
   display: flex;

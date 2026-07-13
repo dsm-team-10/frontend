@@ -1,6 +1,23 @@
-export const PROPS = [
+// Mock "데이터베이스" — 실제 서비스라면 백엔드 DB/공공데이터가 들어올 자리입니다.
+// 전국 확장을 대비해 매물은 region 키로 묶고, 지역별 지도 설정을 REGIONS로 분리했습니다.
+// 이 파일을 직접 import하지 말고 ./listings.js 의 API를 통해 접근하세요.
+
+export const REGIONS = [
+  {
+    id: 'daejeon-jeongnim',
+    name: '대전 서구 정림동',
+    breadcrumb: ['대전광역시', '서구', '정림동'],
+    center: [36.3018, 127.3742],
+    zoom: 16,
+  },
+];
+
+export const DEFAULT_REGION_ID = 'daejeon-jeongnim';
+
+export const LISTINGS = [
   {
     id: 'p1',
+    region: 'daejeon-jeongnim',
     name: '정림동 반지하 원룸',
     addr: '서구 정림동',
     owner: '집주인',
@@ -26,6 +43,7 @@ export const PROPS = [
   },
   {
     id: 'p2',
+    region: 'daejeon-jeongnim',
     name: '유등빌라 101호',
     addr: '서구 정림동',
     owner: '집주인',
@@ -51,6 +69,7 @@ export const PROPS = [
   },
   {
     id: 'p3',
+    region: 'daejeon-jeongnim',
     name: '하천뷰 하이츠 3층',
     addr: '서구 정림동',
     owner: '집주인',
@@ -76,6 +95,7 @@ export const PROPS = [
   },
   {
     id: 'p4',
+    region: 'daejeon-jeongnim',
     name: '정림 그린빌 302호',
     addr: '서구 정림동',
     owner: '집주인',
@@ -100,6 +120,7 @@ export const PROPS = [
   },
   {
     id: 'p5',
+    region: 'daejeon-jeongnim',
     name: '도솔산 언덕주택',
     addr: '서구 정림동',
     owner: '집주인',
@@ -124,6 +145,7 @@ export const PROPS = [
   },
   {
     id: 'p6',
+    region: 'daejeon-jeongnim',
     name: '파노라마 오피스텔',
     addr: '서구 정림동',
     owner: '집주인',
@@ -149,37 +171,7 @@ export const PROPS = [
 ];
 
 export const FLOOD_ZONES = [
-  { thr: 30, coords: [[36.3024, 127.3786], [36.3006, 127.3788], [36.2999, 127.377], [36.302, 127.3768]] },
-  { thr: 55, coords: [[36.3033, 127.379], [36.3, 127.3793], [36.2993, 127.3764], [36.303, 127.376]] },
-  { thr: 80, coords: [[36.3042, 127.3795], [36.2995, 127.3798], [36.2988, 127.3756], [36.3038, 127.375]] },
+  { region: 'daejeon-jeongnim', thr: 30, coords: [[36.3024, 127.3786], [36.3006, 127.3788], [36.2999, 127.377], [36.302, 127.3768]] },
+  { region: 'daejeon-jeongnim', thr: 55, coords: [[36.3033, 127.379], [36.3, 127.3793], [36.2993, 127.3764], [36.303, 127.376]] },
+  { region: 'daejeon-jeongnim', thr: 80, coords: [[36.3042, 127.3795], [36.2995, 127.3798], [36.2988, 127.3756], [36.3038, 127.375]] },
 ];
-
-export const GRADES = [
-  { min: 100, g: 'A', d: '100mm에도 안전' },
-  { min: 80, g: 'B', d: '폭우에 강함' },
-  { min: 60, g: 'C', d: '집중호우 주의' },
-  { min: 40, g: 'D', d: '침수 위험' },
-  { min: 0, g: 'E', d: '상시 취약' },
-];
-
-export const HEX = {
-  A: '#1f9d6b',
-  B: '#63b95a',
-  C: '#eaa032',
-  D: '#e5793a',
-  E: '#e04b4b',
-};
-
-export const RAIN_DESCRIPTIONS = [
-  { min: 90, t: '극한 호우 — 2020 대전 정림동급' },
-  { min: 70, t: '물폭탄 (2020.7.30에 근접)' },
-  { min: 50, t: '시간당 50mm — 하수 용량 초과' },
-  { min: 30, t: '강한 비 — 저지대 물 고임' },
-  { min: 10, t: '보통 비' },
-  { min: 1, t: '약한 비' },
-  { min: 0, t: '비가 오지 않는 상태 — 슬라이더를 올려보세요' },
-];
-
-export function gradeOf(threshold) {
-  return GRADES.find((grade) => threshold >= grade.min);
-}

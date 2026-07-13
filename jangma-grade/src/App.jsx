@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
-import { HEX, PROPS, RAIN_DESCRIPTIONS, gradeOf } from './data.js';
+import { HEX, RAIN_DESCRIPTIONS, gradeOf } from './domain/grade.js';
+import { fetchRegion } from './api/listings.js';
 
 const DEAL_OPTIONS = ['전체', '전세', '월세'];
 const ROOM_OPTIONS = ['원룸', '투룸+', '오피스텔'];
@@ -128,12 +129,11 @@ function coachItems(property) {
   return items;
 }
 
-function buildCrossSection(property, rain) {
-  const safest = PROPS.reduce((current, item) =>
-    item.thr > current.thr ? item : current,
-  );
+function buildCrossSection(property, rain, listings) {
+  const ranked = [...listings].sort((a, b) => b.thr - a.thr);
+  const safest = ranked[0] ?? property;
   const alternative =
-    property.id === safest.id ? PROPS.find((item) => item.id === 'p5') : safest;
+    property.id === safest.id ? ranked[1] ?? safest : safest;
   const ground = 150;
   const elevationMax = 12;
   const y = (elevation) => ground - (elevation / elevationMax) * 95;
@@ -387,7 +387,14 @@ function PropertyCard({ property, selected, onSelect }) {
   );
 }
 
-function PropertyList({ properties, selectedId, sortMode, onSelect, onSort }) {
+function PropertyList({
+  properties,
+  loading,
+  selectedId,
+  sortMode,
+  onSelect,
+  onSort,
+}) {
   return (
     <aside className="list">
       <div className="list__head">
@@ -408,18 +415,22 @@ function PropertyList({ properties, selectedId, sortMode, onSelect, onSort }) {
           ))}
         </div>
         <div className="list__cnt">
-          매물 <b>{properties.length}</b>
+          매물 <b>{loading ? '…' : properties.length}</b>
         </div>
       </div>
       <div className="cards">
-        {properties.map((property) => (
-          <PropertyCard
-            key={property.id}
-            property={property}
-            selected={property.id === selectedId}
-            onSelect={onSelect}
-          />
-        ))}
+        {loading ? (
+          <div className="list__loading">매물을 불러오는 중…</div>
+        ) : (
+          properties.map((property) => (
+            <PropertyCard
+              key={property.id}
+              property={property}
+              selected={property.id === selectedId}
+              onSelect={onSelect}
+            />
+          ))
+        )}
       </div>
     </aside>
   );
@@ -434,6 +445,8 @@ function floodRadius(property, rain) {
 
 function MapPane({
   rain,
+  region,
+  listings,
   selectedId,
   selectedProperty,
   visiblePropertyIds,
@@ -445,12 +458,13 @@ function MapPane({
   const markersRef = useRef({});
   const selectedFloodRef = useRef(null);
 
+  // 지역 데이터가 도착하면 해당 중심으로 지도를 초기화합니다.
   useEffect(() => {
-    if (!mapElementRef.current || mapRef.current) return;
+    if (!mapElementRef.current || mapRef.current || !region) return;
 
     const map = L.map(mapElementRef.current, { zoomControl: true }).setView(
-      [36.3018, 127.3742],
-      16,
+      region.center,
+      region.zoom,
     );
     L.tileLayer(
       'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
@@ -461,25 +475,36 @@ function MapPane({
       },
     ).addTo(map);
 
-    PROPS.forEach((property) => {
-      const marker = L.marker([property.lat, property.lng], {
-        icon: markerIcon(property, 0, null),
-      }).addTo(map);
-      marker.on('click', () => onSelect(property.id));
-      markersRef.current[property.id] = marker;
-    });
-
     mapRef.current = map;
     setTimeout(() => map.invalidateSize(), 200);
 
     return () => {
       map.remove();
       mapRef.current = null;
+      markersRef.current = {};
+      selectedFloodRef.current = null;
     };
-  }, [onSelect]);
+  }, [region]);
+
+  // 매물 목록이 바뀌면 마커를 다시 생성합니다.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    Object.values(markersRef.current).forEach((marker) => marker.remove());
+    markersRef.current = {};
+
+    listings.forEach((property) => {
+      const marker = L.marker([property.lat, property.lng], {
+        icon: markerIcon(property, 0, null),
+      }).addTo(map);
+      marker.on('click', () => onSelect(property.id));
+      markersRef.current[property.id] = marker;
+    });
+  }, [listings, onSelect]);
 
   useEffect(() => {
-    PROPS.forEach((property) => {
+    listings.forEach((property) => {
       const marker = markersRef.current[property.id];
       if (!marker) return;
 
@@ -488,7 +513,7 @@ function MapPane({
       const element = marker.getElement();
       if (element) element.style.display = visible ? '' : 'none';
     });
-  }, [rain, selectedId, visiblePropertyIds]);
+  }, [rain, selectedId, visiblePropertyIds, listings]);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -522,17 +547,22 @@ function MapPane({
   }, [floodOn, rain, selectedProperty]);
 
   useEffect(() => {
-    if (!selectedId || !mapRef.current) return;
-    const property = PROPS.find((item) => item.id === selectedId);
-    if (property)
-      mapRef.current.panTo([property.lat, property.lng], { animate: true });
-  }, [selectedId]);
+    if (!selectedProperty || !mapRef.current) return;
+    mapRef.current.panTo([selectedProperty.lat, selectedProperty.lng], {
+      animate: true,
+    });
+  }, [selectedProperty]);
 
   return (
     <>
       <div ref={mapElementRef} id="map" />
       <div className="bread">
-        <span className="pin">◉</span> 대전광역시 <i>›</i> 서구 <i>›</i> 정림동
+        <span className="pin">◉</span>{' '}
+        {(region?.breadcrumb ?? []).map((crumb, index) => (
+          <span key={crumb}>
+            {index > 0 && <i>›</i>} {crumb}
+          </span>
+        ))}
       </div>
     </>
   );
@@ -584,7 +614,7 @@ function RainPanel({ rain, property, onRain }) {
   );
 }
 
-function DetailDrawer({ property, rain, onClose }) {
+function DetailDrawer({ property, rain, listings, onClose }) {
   const [report, setReport] = useState(
     '아래 버튼을 눌러 이 매물의 솔직한 브리핑을 받아보세요.',
   );
@@ -602,7 +632,7 @@ function DetailDrawer({ property, rain, onClose }) {
   }
 
   const grade = gradeOf(property.thr);
-  const crossSection = buildCrossSection(property, rain);
+  const crossSection = buildCrossSection(property, rain, listings);
   const alertOn = rain >= property.thr;
 
   const streamReport = () => {
@@ -757,6 +787,9 @@ function DetailDrawer({ property, rain, onClose }) {
 }
 
 export default function App() {
+  const [region, setRegion] = useState(null);
+  const [listings, setListings] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [rain, setRain] = useState(0);
   const [selectedId, setSelectedId] = useState(null);
   const [sortMode, setSortMode] = useState('rank');
@@ -767,9 +800,23 @@ export default function App() {
   const [dealType, setDealType] = useState('전체');
   const [priceLimits, setPriceLimits] = useState({ 월세: 100, 전세: 35000 });
 
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    fetchRegion().then(({ region, listings }) => {
+      if (!active) return;
+      setRegion(region);
+      setListings(listings);
+      setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const visibleProperties = useMemo(() => {
     const filters = { dealType, hideRisk, minThreshold, priceLimits, roomType };
-    const filtered = PROPS.filter((property) =>
+    const filtered = listings.filter((property) =>
       matchesFilters(property, filters),
     );
     if (sortMode === 'price')
@@ -778,7 +825,7 @@ export default function App() {
     if (sortMode === 'recent')
       return [...filtered].sort((a, b) => b.recent - a.recent);
     return filtered;
-  }, [dealType, hideRisk, minThreshold, priceLimits, roomType, sortMode]);
+  }, [listings, dealType, hideRisk, minThreshold, priceLimits, roomType, sortMode]);
 
   const visiblePropertyIds = useMemo(
     () => new Set(visibleProperties.map((property) => property.id)),
@@ -789,7 +836,9 @@ export default function App() {
     if (selectedId && !visiblePropertyIds.has(selectedId)) setSelectedId(null);
   }, [selectedId, visiblePropertyIds]);
 
-  const selectedProperty = PROPS.find((property) => property.id === selectedId);
+  const selectedProperty = listings.find(
+    (property) => property.id === selectedId,
+  );
   const resetFilters = () => {
     setRoomType('원룸');
     setDealType('전체');
@@ -817,6 +866,7 @@ export default function App() {
       <main className="work">
         <PropertyList
           properties={visibleProperties}
+          loading={loading}
           selectedId={selectedId}
           sortMode={sortMode}
           onSelect={setSelectedId}
@@ -825,6 +875,8 @@ export default function App() {
         <section className="mapwrap">
           <MapPane
             rain={rain}
+            region={region}
+            listings={listings}
             selectedId={selectedId}
             selectedProperty={selectedProperty}
             visiblePropertyIds={visiblePropertyIds}
@@ -841,6 +893,7 @@ export default function App() {
           <DetailDrawer
             property={selectedProperty}
             rain={rain}
+            listings={listings}
             onClose={() => setSelectedId(null)}
           />
         </section>
