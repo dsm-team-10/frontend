@@ -172,9 +172,9 @@ function BrandBar() {
     <header className="brandbar">
       <div className="brandbar__l">
         <span className="logo">
-          RainMap<b>°</b>
+          뽀송<b>˚</b>
         </span>
-        <span className="brandbar__tag">침수 안전등급이 보이는 부동산</span>
+        <span className="brandbar__tag">물길까지 보는 부동산</span>
       </div>
     </header>
   );
