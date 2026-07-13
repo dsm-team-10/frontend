@@ -439,7 +439,6 @@ function MapPane({
   visiblePropertyIds,
   floodOn,
   onSelect,
-  onToggleFlood,
 }) {
   const mapElementRef = useRef(null);
   const mapRef = useRef(null);
@@ -534,7 +533,6 @@ function MapPane({
       <div ref={mapElementRef} id="map" />
       <div className="bread">
         <span className="pin">◉</span> 대전광역시 <i>›</i> 서구 <i>›</i> 정림동
-        w
       </div>
     </>
   );
@@ -764,7 +762,7 @@ export default function App() {
   const [sortMode, setSortMode] = useState('rank');
   const [minThreshold, setMinThreshold] = useState(0);
   const [hideRisk, setHideRisk] = useState(false);
-  const [floodOn, setFloodOn] = useState(true);
+  const [floodOn] = useState(true);
   const [roomType, setRoomType] = useState('원룸');
   const [dealType, setDealType] = useState('전체');
   const [priceLimits, setPriceLimits] = useState({ 월세: 100, 전세: 35000 });
@@ -832,7 +830,6 @@ export default function App() {
             visiblePropertyIds={visiblePropertyIds}
             floodOn={floodOn}
             onSelect={setSelectedId}
-            onToggleFlood={() => setFloodOn((value) => !value)}
           />
           {selectedProperty && (
             <RainPanel
