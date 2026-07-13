@@ -400,31 +400,33 @@ input {
   box-shadow: inset 3px 0 0 var(--brand);
 }
 
-.card__grade {
-  width: 72px;
+.card__thumb {
+  width: 82px;
+  height: 82px;
   flex-shrink: 0;
   border-radius: 10px;
-  color: #fff;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-  padding: 12px 0;
+  background-color: #dfe6ea;
+  background-size: cover;
+  background-position: center;
+  position: relative;
 }
 
-.card__grade-g {
+.card__badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 6px;
+  color: #fff;
   font-family: var(--disp);
   font-weight: 700;
-  font-size: 34px;
-  line-height: 1;
-}
-
-.card__grade-mm {
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 500;
-  opacity: 0.92;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 30%);
 }
 
 .card__b {
@@ -648,10 +650,9 @@ input {
   padding-top: 12px;
 }
 
-.rp__2020 {
+.rp__record {
   position: absolute;
   top: -1px;
-  left: 68%;
   transform: translateX(-50%);
   font-family: var(--mono);
   font-size: 9.5px;
@@ -659,7 +660,7 @@ input {
   white-space: nowrap;
 }
 
-.rp__2020::after {
+.rp__record::after {
   content: "";
   display: block;
   width: 1px;
@@ -731,6 +732,16 @@ input[type="range"]::-moz-range-thumb {
 
 .dw__back:hover {
   color: var(--txt);
+}
+
+.dw__photo {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: 13px;
+  background-color: #dfe6ea;
+  background-size: cover;
+  background-position: center;
+  margin-bottom: 14px;
 }
 
 .dw__id {

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import { HEX, RAIN_DESCRIPTIONS, gradeOf } from './domain/grade.js';
-import { fetchRegion } from './api/listings.js';
+import { DEFAULT_REGION_ID, fetchRegion, fetchRegions } from './api/listings.js';
 
+const RAIN_MAX = 150;
+const RAIN_RECORD = { mm: 141.5, label: '2022.08.08 신대방동 141.5mm' };
 const DEAL_OPTIONS = ['전체', '전세', '월세'];
 const ROOM_OPTIONS = ['원룸', '투룸+', '오피스텔'];
 const PRICE_BOUNDS = {
@@ -87,21 +89,21 @@ function reportText(property) {
 
   text += property.banjiha
     ? `<span class="em">반지하</span> 구조라 물이 지면 아래로 고여, 같은 비에도 지상보다 훨씬 취약합니다. `
-    : `유등천 기준 상대 고도 약 ${property.elev.toFixed(1)}m 지점입니다. `;
+    : `${property.riverName} 기준 인근 해발고도 약 ${property.elevationM}m 지점입니다. `;
 
   text += wetHistory
-    ? `실제로 <span class="em">${wetHistory.date}(${wetHistory.mm}mm/h)</span>에 "${wetHistory.txt}" 기록이 침수흔적도에 남아 있습니다. `
-    : '현재까지 확인된 침수 이력은 없습니다. ';
+    ? `실제로 <span class="em">${wetHistory.date}${wetHistory.mm ? `(${wetHistory.mm}mm/h)` : ''}</span>에 "${wetHistory.txt}" 기록이 공개 보도로 남아 있습니다. `
+    : '현재까지 확인된 침수 피해 이력은 없습니다. ';
 
   if (property.thr < 60) {
     return `${text}기상청이 시간당 ${property.thr}mm 이상을 예보하는 날이면 사전 대비가 필요합니다. 계약 전 물막이판과 역류방지밸브 설치 여부를 반드시 확인하세요.`;
   }
 
   if (property.thr < 90) {
-    return `${text}평범한 장마엔 견디지만, 2020년 정림동급 집중호우에선 안심하기 어렵습니다. 지하주차장·1층 상태를 확인하세요.`;
+    return `${text}평범한 장마엔 견디지만, 2022년 서울 신대방동급 집중호우(시간당 141.5mm)에선 안심하기 어렵습니다. 지하주차장·1층 상태를 확인하세요.`;
   }
 
-  return `${text}대전의 어떤 폭우 시나리오에서도 안전한 편입니다. 다른 조건에 집중하셔도 됩니다.`;
+  return `${text}지금까지 관측된 서울의 폭우 시나리오에서는 비교적 안전한 편입니다. 다른 조건에 집중하셔도 됩니다.`;
 }
 
 function coachItems(property) {
@@ -135,14 +137,12 @@ function buildCrossSection(property, rain, listings) {
   const alternative =
     property.id === safest.id ? ranked[1] ?? safest : safest;
   const ground = 150;
-  const elevationMax = 12;
+  const elevationMax = 80; // 대상 15곳 중 최고 해발고도(약 78m)에 맞춘 스케일
+  const rainMax = 150; // 강수량 슬라이더 최대값과 동일
   const y = (elevation) => ground - (elevation / elevationMax) * 95;
-  const selectedY = y(property.elev);
-  const alternativeY = y(alternative.elev);
-  const waterY = Math.min(
-    ground,
-    Math.max(30, ground - (rain / elevationMax / 9.6) * 95),
-  );
+  const selectedY = y(property.elevationM);
+  const alternativeY = y(alternative.elevationM);
+  const waterY = Math.min(ground, Math.max(30, ground - (rain / rainMax) * 120));
   const selectedFlooded = rain >= property.thr;
   const alternativeFlooded = rain >= alternative.thr;
 
@@ -216,11 +216,14 @@ function Filters({
   hideRisk,
   minThreshold,
   priceLimits,
+  regionId,
+  regionOptions,
   roomType,
   onDealType,
   onHideRisk,
   onMinThreshold,
   onPriceLimitsApply,
+  onRegion,
   onReset,
   onRoomType,
 }) {
@@ -240,6 +243,19 @@ function Filters({
 
   return (
     <div className="filters">
+      <div className="fdrop">
+        <select
+          aria-label="지역"
+          value={regionId}
+          onChange={(event) => onRegion(event.target.value)}
+        >
+          {regionOptions.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.name}
+            </option>
+          ))}
+        </select>
+      </div>
       <div className="seg">
         {ROOM_OPTIONS.map((item) => (
           <button
@@ -351,9 +367,13 @@ function PropertyCard({ property, selected, onSelect }) {
       type="button"
       onClick={() => onSelect(property.id)}
     >
-      <div className="card__grade" style={{ background: HEX[grade.g] }}>
-        <span className="card__grade-g">{grade.g}</span>
-        <span className="card__grade-mm">{property.thr}mm</span>
+      <div
+        className="card__thumb"
+        style={{ backgroundImage: `url(${property.photo})` }}
+      >
+        <span className="card__badge" style={{ background: HEX[grade.g] }}>
+          {grade.g}
+        </span>
       </div>
       <div className="card__b">
         <div className="card__name">{property.name}</div>
@@ -459,7 +479,7 @@ function MapPane({
     };
   }, [region]);
 
-  // 매물 목록이 바뀌면 마커를 다시 생성합니다.
+  // 매물 목록이 바뀌면 마커를 다시 생성하고, 전체가 보이도록 지도를 맞춥니다.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
@@ -474,6 +494,13 @@ function MapPane({
       marker.on('click', () => onSelect(property.id));
       markersRef.current[property.id] = marker;
     });
+
+    if (listings.length > 0) {
+      const bounds = L.latLngBounds(
+        listings.map((property) => [property.lat, property.lng]),
+      );
+      map.fitBounds(bounds, { padding: [48, 48] });
+    }
   }, [listings, onSelect]);
 
   useEffect(() => {
@@ -523,11 +550,16 @@ function RainDock({ rain, onRain }) {
         <div className="rp__desc">{description}</div>
       </div>
       <div className="rp__track">
-        <div className="rp__2020">2020.7.30 정림동 78mm</div>
+        <div
+          className="rp__record"
+          style={{ left: `${(RAIN_RECORD.mm / RAIN_MAX) * 100}%` }}
+        >
+          {RAIN_RECORD.label}
+        </div>
         <input
           type="range"
           min="0"
-          max="115"
+          max={RAIN_MAX}
           value={rain}
           step="1"
           aria-label="시간당 강수량"
@@ -538,7 +570,8 @@ function RainDock({ rain, onRain }) {
           <span>30</span>
           <span>60</span>
           <span>90</span>
-          <span>115mm</span>
+          <span>120</span>
+          <span>{RAIN_MAX}mm</span>
         </div>
       </div>
     </div>
@@ -593,6 +626,10 @@ function DetailPanel({ property, rain, listings, onBack }) {
         ‹ 목록으로
       </button>
       <div className="dw__body">
+        <div
+          className="dw__photo"
+          style={{ backgroundImage: `url(${property.photo})` }}
+        />
         <div className="dw__id">
           <div className="p-name">{property.name}</div>
           <div className="p-addr">
@@ -609,7 +646,9 @@ function DetailPanel({ property, rain, listings, onBack }) {
               {property.thr}
               <small>mm/h</small>
             </div>
-            <div className="sub">이 강수량부터 침수 이력이 있습니다</div>
+            <div className="sub">
+              고도·하천거리·침수이력을 종합한 예상 임계점입니다
+            </div>
           </div>
           <div className="grade" style={{ background: HEX[grade.g] }}>
             <div className="g-lbl">등급</div>
@@ -704,9 +743,12 @@ function DetailPanel({ property, rain, listings, onBack }) {
         </section>
 
         <div className="foot">
-          DEMO · 출처(활용 예정): <b>행안부 침수흔적도</b> ·{' '}
-          <b>국토지리정보원 DEM</b> · <b>기상청 강수량</b>. 지도 © OpenStreetMap
-          · © CARTO. 수치는 시연용 예시.
+          PROTOTYPE · 이 서비스는 침수 위험 판단 로직의 시장성을 검증하기 위한
+          데모입니다. 매물명·가격·중개사 정보는 예시이며, 해발고도(
+          <b>Open-Elevation</b>)·최근접 하천 거리(<b>OpenStreetMap</b>)·침수
+          이력(2022.08.08 서울 폭우, 2026.07.09 도림천 침수주의보 등 공개
+          보도)은 실제 공개 데이터를 근거로 계산되었습니다. 지도 ©
+          OpenStreetMap · © CARTO.
         </div>
       </div>
     </aside>
@@ -714,6 +756,8 @@ function DetailPanel({ property, rain, listings, onBack }) {
 }
 
 export default function App() {
+  const [regionId, setRegionId] = useState(DEFAULT_REGION_ID);
+  const [regionOptions, setRegionOptions] = useState([]);
   const [region, setRegion] = useState(null);
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -727,9 +771,13 @@ export default function App() {
   const [priceLimits, setPriceLimits] = useState({ 월세: 100, 전세: 35000 });
 
   useEffect(() => {
+    fetchRegions().then(setRegionOptions);
+  }, []);
+
+  useEffect(() => {
     let active = true;
     setLoading(true);
-    fetchRegion().then(({ region, listings }) => {
+    fetchRegion(regionId).then(({ region, listings }) => {
       if (!active) return;
       setRegion(region);
       setListings(listings);
@@ -738,7 +786,12 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [regionId]);
+
+  const handleRegion = (id) => {
+    setRegionId(id);
+    setSelectedId(null);
+  };
 
   const visibleProperties = useMemo(() => {
     const filters = { dealType, hideRisk, minThreshold, priceLimits, roomType };
@@ -781,11 +834,14 @@ export default function App() {
         hideRisk={hideRisk}
         minThreshold={minThreshold}
         priceLimits={priceLimits}
+        regionId={regionId}
+        regionOptions={regionOptions}
         roomType={roomType}
         onDealType={setDealType}
         onHideRisk={setHideRisk}
         onMinThreshold={setMinThreshold}
         onPriceLimitsApply={setPriceLimits}
+        onRegion={handleRegion}
         onReset={resetFilters}
         onRoomType={setRoomType}
       />
